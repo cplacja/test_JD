@@ -333,20 +333,17 @@ document.addEventListener('DOMContentLoaded', function() {
     ctx.closePath();
     ctx.fill();
 
-    // 부드러운 선
-    ctx.strokeStyle = '#C10933';
-    ctx.lineWidth = 3;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.beginPath();
-    ctx.moveTo(points[0].x, points[0].y);
-    for (var m = 1; m < points.length; m++) {
-      var prev = points[m - 1];
-      var curr = points[m];
-      var midX = prev.x + (curr.x - prev.x) / 2;
-      ctx.bezierCurveTo(midX, prev.y, midX, curr.y, curr.x, curr.y);
-    }
-    ctx.stroke();
+// 직선 (꺾은선)
+ctx.strokeStyle = '#C10933';
+ctx.lineWidth = 3;
+ctx.lineCap = 'round';
+ctx.lineJoin = 'round';
+ctx.beginPath();
+ctx.moveTo(points[0].x, points[0].y);
+for (var m = 1; m < points.length; m++) {
+  ctx.lineTo(points[m].x, points[m].y);
+}
+ctx.stroke();
 
     // 점 + 라벨
     for (var n = 0; n < points.length; n++) {
