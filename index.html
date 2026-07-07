@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CS NPS 주차별 인사이트 대시보드 Offline</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background-color: #F3F4F6;
+    font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+    color: #374151;
+    min-height: 100vh;
+    padding: 16px;
+  }
+  .container { max-width: 1200px; margin: 0 auto; padding: 16px; }
+  .header { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
+  .header-bar { width: 12px; height: 36px; background: #C10933; border-radius: 4px; }
+  .header h1 { font-size: 26px; font-weight: 800; color: #1F2937; }
+  .header p { font-size: 13px; color: #6B7280; margin-top: 4px; }
+  .card {
+    background: #ffffff; border-radius: 12px; padding: 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+    margin-bottom: 20px;
+  }
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px; margin-bottom: 20px;
+  }
+  .kpi-card .kpi-label {
+    font-size: 11px; color: #6B7280; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .kpi-card .kpi-value {
+    font-size: 32px; font-weight: 800; color: #1F2937; margin-top: 8px;
+  }
+  .kpi-card .kpi-unit { font-size: 15px; color: #9CA3AF; margin-left: 4px; }
+  .kpi-card .kpi-sub { font-size: 11px; color: #9CA3AF; margin-top: 4px; }
+  .kpi-card .kpi-sub.red { color: #C10933; font-weight: 600; }
+  .chart-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 16px; flex-wrap: wrap; gap: 8px;
+  }
+  .chart-header h2 { font-size: 17px; font-weight: 700; color: #1F2937; }
+  .chart-header .note { font-size: 11px; color: #6B7280; }
+  .note .red-text { color: #C10933; font-weight: 700; }
+  .chart-wrap {
+    position: relative; width: 100%; height: 380px;
+  }
+  .chart-wrap canvas {
+    width: 100%; height: 100%; display: block; cursor: crosshair;
+  }
+  .tooltip {
+    position: absolute;
+    background: rgba(17, 24, 39, 0.95); color: #ffffff;
+    padding: 8px 12px; border-radius: 6px; font-size: 12px;
+    pointer-events: none; opacity: 0;
+    transition: opacity 0.15s ease;
+    border: 1px solid #C10933; white-space: nowrap; z-index: 10;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15); left: 0; top: 0;
+  }
+  .tooltip.show { opacity: 1; }
+  .tooltip .t-title { font-weight: 700; margin-bottom: 4px; }
+  .tooltip .t-body { color: #F3F4F6; }
+  footer { text-align: center; font-size: 11px; color: #9CA3AF; margin-top: 20px; }
+  @media (max-width: 640px) {
+    .header h1 { font-size: 20px; }
+    .kpi-card .kpi-value { font-size: 26px; }
+    .chart-wrap { height: 320px; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div class="header-bar"></div>
+    <div>
+      <h1>CS NPS 주차별 인사이트 대시보드</h1>
+      <p>19주차 ~ 25주차 고객 만족도 및 수리 완료 현황 (Offline)</p>
+    </div>
+  </div>
+
+  <div class="kpi-grid">
+    <div class="card kpi-card">
+      <div class="kpi-label">총 접수건수</div>
+      <div class="kpi-value">1,000<span class="kpi-unit">건</span></div>
+      <div class="kpi-sub">전체 CS 접수 기준</div>
+    </div>
+    <div class="card kpi-card">
+      <div class="kpi-label">완료건수</div>
+      <div class="kpi-value">972<span class="kpi-unit">건</span></div>
+      <div class="kpi-sub red">완료율 97.2%</div>
+    </div>
+    <div class="card kpi-card">
+      <div class="kpi-label">평균 처리일수</div>
+      <div class="kpi-value">3.21<span class="kpi-unit">일</span></div>
+      <div class="kpi-sub">완료 건 기준</div>
+    </div>
+    <div class="card kpi-card">
+      <div class="kpi-label">평균 NPS 만족도</div>
+      <div class="kpi-value">8.18<span class="kpi-unit">/ 10</span></div>
+      <div class="kpi-sub">응답건 평균 점수</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="chart-header">
+      <h2>제품 카테고리별 평균 NPS 점수</h2>
+      <span class="note">최저 점수 제품은 <span class="red-text">LG 레드</span>로 강조</span>
+    </div>
+    <div class="chart-wrap" id="npsWrap">
+      <canvas id="npsCanvas"></canvas>
+      <div class="tooltip" id="npsTip"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="chart-header">
+      <h2>주차별 접수건수 추이 (19주차 ~ 25주차)</h2>
+      <span class="note">25주차는 6/15 단일 일자 기준 부분 집계</span>
+    </div>
+    <div class="chart-wrap" id="weekWrap">
+      <canvas id="weekCanvas"></canvas>
+      <div class="tooltip" id="weekTip"></div>
+    </div>
+  </div>
+
+  <footer>LG전자 CS HR Analytics - Offline Prototype Dashboard</footer>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+
+  var npsData = [
+    { category: '휘센 에어컨',   score: 6.16 },
+    { category: '프라엘 뷰티',   score: 8.23 },
+    { category: '그램 노트북',   score: 8.47 },
+    { category: '디오스 냉장고', score: 8.56 },
+    { category: '오브제 청소기', score: 8.60 },
+    { category: '트롬 세탁기',   score: 8.63 },
+    { category: '올레드 TV',     score: 8.72 }
+  ];
+  var weekData = {
+    labels: ['19주차','20주차','21주차','22주차','23주차','24주차','25주차'],
+    counts: [149, 156, 150, 154, 141, 158, 26]
+  };
+
+  function setupCanvas(canvas) {
+    var dpr = window.devicePixelRatio || 1;
+    var rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    var ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    return { ctx: ctx, w: rect.width, h: rect.height };
+  }
+
+  function showTip(tipEl, wrap, mx, my, title, body) {
+    tipEl.innerHTML = '<div class="t-title">' + title + '</div><div class="t-body">' + body + '</div>';
+    tipEl.classList.add('show');
+    var rect = wrap.getBoundingClientRect();
+    var tw = tipEl.offsetWidth;
+    var th = tipEl.offsetHeight;
+    var left = mx - tw / 2;
+    var top = my - th - 14;
+    if (left < 4) left = 4;
+    if (left + tw > rect.width - 4) left = rect.width - tw - 4;
+    if (top < 4) top = my + 18;
+    tipEl.style.left = left + 'px';
+    tipEl.style.top = top + 'px';
+  }
+  function hideTip(tipEl) { tipEl.classList.remove('show'); }
+
+  // ============ 막대 차트 ============
+  function drawNps() {
+    var canvas = document.getElementById('npsCanvas');
+    var wrap = document.getElementById('npsWrap');
+    var tip = document.getElementById('npsTip');
+    var s = setupCanvas(canvas);
+    var ctx = s.ctx, W = s.w, H = s.h;
+
+    var padL = 50, padR = 20, padT = 30, padB = 60;
+    var chartW = W - padL - padR;
+    var chartH = H - padT - padB;
+    var yMax = 10;
+    var minScore = Math.min.apply(null, npsData.map(function(d){return d.score;}));
+
+    ctx.clearRect(0, 0, W, H);
+
+    // Y grid + 라벨
+    ctx.strokeStyle = '#E5E7EB';
+    ctx.lineWidth = 1;
+    ctx.fillStyle = '#6B7280';
+    ctx.font = '11px Segoe UI, Malgun Gothic, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    for (var i = 0; i <= 5; i++) {
+      var val = (yMax / 5) * i;
+      var y = padT + chartH - (val / yMax) * chartH;
+      ctx.beginPath();
+      ctx.moveTo(padL, y);
+      ctx.lineTo(W - padR, y);
+      ctx.stroke();
+      ctx.fillText(String(val), padL - 8, y);
+    }
+
+    // 막대
+    var gap = chartW / npsData.length;
+    var barW = gap * 0.6;
+    var bars = [];
+
+    for (var j = 0; j < npsData.length; j++) {
+      var d = npsData[j];
+      var barH = (d.score / yMax) * chartH;
+      var bx = padL + gap * j + (gap - barW) / 2;
+      var by = padT + chartH - barH;
+      var isMin = d.score === minScore;
+      var fill = isMin ? '#C10933' : '#9CA3AF';
+      var stroke = isMin ? '#8B0725' : '#6B7280';
+
+      // 둥근 사각형
+      ctx.fillStyle = fill;
+      ctx.strokeStyle = stroke;
+      ctx.beginPath();
+      var r = 6;
+      ctx.moveTo(bx + r, by);
+      ctx.lineTo(bx + barW - r, by);
+      ctx.quadraticCurveTo(bx + barW, by, bx + barW, by + r);
+      ctx.lineTo(bx + barW, by + barH);
+      ctx.lineTo(bx, by + barH);
+      ctx.lineTo(bx, by + r);
+      ctx.quadraticCurveTo(bx, by, bx + r, by);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // 값 라벨
+      ctx.fillStyle = '#374151';
+      ctx.font = 'bold 11px Segoe UI, Malgun Gothic, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(d.score.toFixed(2), bx + barW / 2, by - 4);
+
+      // X축 라벨
+      ctx.font = 'bold 12px Segoe UI, Malgun Gothic, sans-serif';
+      ctx.textBaseline = 'top';
+      ctx.fillText(d.category, bx + barW / 2, H - padB + 12);
+
+      bars.push({ x: bx, y: by, w: barW, h: barH, data: d, isMin: isMin });
+    }
+
+    // hover
+    canvas.onmousemove = function(e) {
+      var rect = canvas.getBoundingClientRect();
+      var mx = e.clientX - rect.left;
+      var my = e.clientY - rect.top;
+      var found = null;
+      for (var k = 0; k < bars.length; k++) {
+        var b = bars[k];
+        if (mx >= b.x && mx <= b.x + b.w && my >= b.y && my <= b.y + b.h) {
+          found = b; break;
+        }
+      }
+      if (found) {
+        var tag = found.isMin ? '  최저 만족도' : '';
+        showTip(tip, wrap, mx, my, found.data.category,
+                '평균 NPS: ' + found.data.score.toFixed(2) + ' / 10' + tag);
+      } else {
+        hideTip(tip);
+      }
+    };
+    canvas.onmouseleave = function() { hideTip(tip); };
+  }
+
+  // ============ 꺾은선 차트 ============
+  function drawWeek() {
+    var canvas = document.getElementById('weekCanvas');
+    var wrap = document.getElementById('weekWrap');
+    var tip = document.getElementById('weekTip');
+    var s = setupCanvas(canvas);
+    var ctx = s.ctx, W = s.w, H = s.h;
+
+    var padL = 55, padR = 30, padT = 30, padB = 60;
+    var chartW = W - padL - padR;
+    var chartH = H - padT - padB;
+    var yMax = 180;
+
+    ctx.clearRect(0, 0, W, H);
+
+    // Y grid
+    ctx.strokeStyle = '#E5E7EB';
+    ctx.lineWidth = 1;
+    ctx.fillStyle = '#6B7280';
+    ctx.font = '11px Segoe UI, Malgun Gothic, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    for (var i = 0; i <= 6; i++) {
+      var val = Math.round((yMax / 6) * i);
+      var y = padT + chartH - (val / yMax) * chartH;
+      ctx.beginPath();
+      ctx.moveTo(padL, y);
+      ctx.lineTo(W - padR, y);
+      ctx.stroke();
+      ctx.fillText(String(val), padL - 8, y);
+    }
+
+    // Y축 타이틀
+    ctx.save();
+    ctx.translate(18, padT + chartH / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.textAlign = 'center';
+    ctx.fillText('건수', 0, 0);
+    ctx.restore();
+
+    // 좌표
+    var points = [];
+    for (var p = 0; p < weekData.counts.length; p++) {
+      var cnt = weekData.counts[p];
+      var px = padL + (chartW / (weekData.counts.length - 1)) * p;
+      var py = padT + chartH - (cnt / yMax) * chartH;
+      points.push({ x: px, y: py, cnt: cnt, label: weekData.labels[p] });
+    }
+
+    // 영역 채우기
+    ctx.fillStyle = 'rgba(193, 9, 51, 0.12)';
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, padT + chartH);
+    for (var q = 0; q < points.length; q++) {
+      ctx.lineTo(points[q].x, points[q].y);
+    }
+    ctx.lineTo(points[points.length - 1].x, padT + chartH);
+    ctx.closePath();
+    ctx.fill();
+
+    // 부드러운 선
+    ctx.strokeStyle = '#C10933';
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    for (var m = 1; m < points.length; m++) {
+      var prev = points[m - 1];
+      var curr = points[m];
+      var midX = prev.x + (curr.x - prev.x) / 2;
+      ctx.bezierCurveTo(midX, prev.y, midX, curr.y, curr.x, curr.y);
+    }
+    ctx.stroke();
+
+    // 점 + 라벨
+    for (var n = 0; n < points.length; n++) {
+      var pt = points[n];
+      // 점 (외곽)
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, 8, 0, Math.PI * 2);
+      ctx.fill();
+      // 점 (내부)
+      ctx.fillStyle = '#C10933';
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, 6, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 값 라벨
+      ctx.fillStyle = '#374151';
+      ctx.font = 'bold 11px Segoe UI, Malgun Gothic, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(String(pt.cnt), pt.x, pt.y - 12);
+
+      // X축 라벨
+      ctx.font = 'bold 12px Segoe UI, Malgun Gothic, sans-serif';
+      ctx.textBaseline = 'top';
+      ctx.fillText(pt.label, pt.x, H - padB + 12);
+    }
+
+    // hover
+    canvas.onmousemove = function(e) {
+      var rect = canvas.getBoundingClientRect();
+      var mx = e.clientX - rect.left;
+      var my = e.clientY - rect.top;
+      var found = null;
+      var minDist = 20;
+      for (var k = 0; k < points.length; k++) {
+        var pt = points[k];
+        var dx = mx - pt.x;
+        var dy = my - pt.y;
+        var dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < minDist) { minDist = dist; found = pt; }
+      }
+      if (found) {
+        showTip(tip, wrap, mx, my, found.label,
+                ' 접수건수: ' + found.cnt.toLocaleString() + ' 건');
+      } else {
+        hideTip(tip);
+      }
+    };
+    canvas.onmouseleave = function() { hideTip(tip); };
+  }
+
+  drawNps();
+  drawWeek();
+
+  // 창 크기 변경 시 재렌더링
+  var resizeTimer;
+  window.addEventListener('resize', function() {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(function() {
+      drawNps();
+      drawWeek();
+    }, 200);
+  });
+});
+</script>
+</body>
+</html>
